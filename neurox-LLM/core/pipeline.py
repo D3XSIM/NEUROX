@@ -18,6 +18,18 @@ class Neurox:
             manager = PluginManager()
             manager.discover_plugins()
         self.manager = manager
+        self.project: dict | None = None
+
+    def set_project(self, project: dict | None) -> None:
+        """Activate a project (from utils.conversations): its instructions go into the system prompt and,
+        if it has a folder, the file tools work inside that folder. ``None`` → default sandbox."""
+        self.project = project
+        try:
+            import tools.builtin as builtin
+            from utils.conversations import project_workspace
+            builtin.WORKSPACE_DIR = project_workspace(project)
+        except Exception:
+            pass
 
     def reconfigure(self, settings: Settings, llm: LLMClient | None = None) -> None:
         self.settings = settings
@@ -32,7 +44,11 @@ class Neurox:
             for name in list(registry.names()):
                 if registry.get(name).dangerous:
                     registry.unregister(name)
+        project = self.project or {}
         return {
+            "project_name": project.get("name"),
+            "project_instructions": project.get("instructions"),
+            "project_folder": project.get("folder"),
             "user_input": user_input,
             "messages": messages,
             "images": images or [],

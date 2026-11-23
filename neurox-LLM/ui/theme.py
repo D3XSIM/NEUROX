@@ -167,6 +167,24 @@ CSS = """
 .st-key-nx_new_chat button { background: var(--nx-grad); border: none; color: #fff; font-weight: 600; }
 .st-key-nx_new_chat button:hover { filter: brightness(1.1); color: #fff; }
 [data-testid="stSidebar"] [data-testid="stExpander"] details { background: transparent; }
+.nx-hero h1 { max-width: 460px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nx-turbo { background: linear-gradient(135deg, rgba(251,191,36,.18), rgba(249,115,22,.18)); border-color: rgba(251,191,36,.5); color: #fde68a; }
+.st-key-nx_turbo { background: var(--nx-surface); border: 1px solid var(--nx-border); border-radius: 12px; padding: 6px 10px; margin-bottom: .2rem; }
+
+/* chat list */
+.st-key-nx_chats { gap: 2px; max-height: 320px; overflow-y: auto; padding-right: 2px; }
+.st-key-nx_chats button {
+  justify-content: flex-start; text-align: left; min-height: 34px; padding: 4px 10px; border-radius: 10px;
+  background: transparent; border: 1px solid transparent; color: var(--nx-muted); font-weight: 500;
+}
+.st-key-nx_chats button > div { justify-content: flex-start; width: 100%; min-width: 0; }
+.st-key-nx_chats button [data-testid="stMarkdownContainer"] { min-width: 0; width: 100%; text-align: left; }
+.st-key-nx_chats button p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .86rem; }
+.st-key-nx_chats button:hover { background: var(--nx-surface-2); color: var(--nx-text); border-color: var(--nx-border); }
+.st-key-nx_chats button[kind="primary"], .st-key-nx_chats button[data-testid="stBaseButton-primary"] {
+  background: rgba(139, 92, 246, .16); border-color: rgba(139, 92, 246, .45); color: var(--nx-text);
+}
+.st-key-nx_chats button[data-testid="stBaseButton-tertiary"] { justify-content: center; padding: 4px; }
 </style>
 """
 
@@ -185,10 +203,11 @@ def _e(text) -> str:
     return html.escape(str(text))
 
 
-def hero(title: str, subtitle: str, model: str, online: bool, status_text: str) -> None:
+def hero(title: str, subtitle: str, model: str, online: bool, status_text: str, turbo: str | None = None) -> None:
+    turbo_chip = f'<div class="nx-chip nx-turbo">{_e(turbo)}</div>' if turbo else ""
     st.markdown(
         f'<div class="nx-hero"><div class="nx-logo">🧠</div>'
-        f'<div class="nx-grow"><h1>{_e(title)}</h1><p>{_e(subtitle)}</p></div>'
+        f'<div class="nx-grow"><h1>{_e(title)}</h1><p>{_e(subtitle)}</p></div>{turbo_chip}'
         f'<div class="nx-chip"><span class="nx-dot{" ok" if online else ""}"></span>{_e(model)} · {_e(status_text)}</div>'
         f'</div>', unsafe_allow_html=True)
 

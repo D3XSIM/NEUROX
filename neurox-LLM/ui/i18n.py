@@ -214,6 +214,32 @@ STRINGS["tr"].update({
     "friendly_unreachable": "⚠️ **Model sunucusuna bağlanamadım.**\n\n"
                             "Ollama'yı başlat (`ollama serve`) ya da LM Studio'da yerel sunucuyu aç, sonra tekrar dene. "
                             "Bağlantı ayarları sol menüde **🔌 Bağlantı** bölümünde.",
+    # turbo mode
+    "turbo": "⚡ Turbo mod",
+    "turbo_help": "Açıkken Neurox araçları (kod çalıştırma, dosya yazma, fare/klavye) izin sormadan kullanır.",
+    "turbo_on": "Turbo açık: araçlar onay beklemeden çalışır.",
+    "turbo_chip": "⚡ Turbo",
+    # conversations & projects
+    "chats": "💬 Sohbetler",
+    "chats_empty": "Henüz kayıtlı sohbet yok.",
+    "delete_chat": "Bu sohbeti sil",
+    "project": "📁 Proje",
+    "no_project": "— Proje yok —",
+    "new_project": "＋ Yeni proje",
+    "project_settings": "⚙️ Proje ayarları",
+    "project_name": "Proje adı",
+    "project_instructions": "Talimatlar (her mesajda uygulanır)",
+    "project_instructions_ph": "Örn: Bu bir React projesi. Cevapları kısa tut, TypeScript kullan.",
+    "project_folder": "Proje klasörü (isteğe bağlı)",
+    "project_folder_help": "Bilgisayarındaki bir klasörün tam yolu, örn. C:\\Users\\sen\\Desktop\\projem. "
+                           "Dosya araçları bu klasörde çalışır.",
+    "project_create": "Projeyi oluştur",
+    "project_save": "Kaydet",
+    "project_delete": "Projeyi sil (sohbetler kalır)",
+    "project_created": "Proje oluşturuldu: {name}",
+    "project_error": "Proje kaydedilemedi: {error}",
+    "project_folder_bad": "Klasör bulunamadı. Var olan bir klasörün tam yolunu yaz.",
+    "project_in": "📁 {name}",
 })
 STRINGS["en"].update({
     "new_chat": "＋  New chat",
@@ -232,6 +258,30 @@ STRINGS["en"].update({
     "friendly_unreachable": "⚠️ **I couldn't reach the model server.**\n\n"
                             "Start Ollama (`ollama serve`) or LM Studio's local server, then try again. "
                             "Connection settings are under **🔌 Connection** in the sidebar.",
+    "turbo": "⚡ Turbo mode",
+    "turbo_help": "When on, Neurox uses tools (code execution, file writes, mouse/keyboard) without asking.",
+    "turbo_on": "Turbo on: tools run without waiting for approval.",
+    "turbo_chip": "⚡ Turbo",
+    "chats": "💬 Chats",
+    "chats_empty": "No saved chats yet.",
+    "delete_chat": "Delete this chat",
+    "project": "📁 Project",
+    "no_project": "— No project —",
+    "new_project": "＋ New project",
+    "project_settings": "⚙️ Project settings",
+    "project_name": "Project name",
+    "project_instructions": "Instructions (applied to every message)",
+    "project_instructions_ph": "e.g. This is a React project. Keep answers short, use TypeScript.",
+    "project_folder": "Project folder (optional)",
+    "project_folder_help": "Full path of a folder on your computer, e.g. C:\\Users\\you\\Desktop\\myproject. "
+                           "File tools work inside it.",
+    "project_create": "Create project",
+    "project_save": "Save",
+    "project_delete": "Delete project (chats are kept)",
+    "project_created": "Project created: {name}",
+    "project_error": "Could not save project: {error}",
+    "project_folder_bad": "Folder not found. Enter the full path of an existing folder.",
+    "project_in": "📁 {name}",
 })
 
 _current = DEFAULT_LANGUAGE

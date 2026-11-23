@@ -5,7 +5,7 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules, copy_metada
 
 datas, binaries, hiddenimports = [], [], []
 
-for pkg in ("streamlit", "webview", "clr_loader", "pythonnet"):
+for pkg in ("streamlit", "webview", "clr_loader", "pythonnet", "ddgs", "primp"):
     try:
         d, b, h = collect_all(pkg)
         datas += d; binaries += b; hiddenimports += h
@@ -23,7 +23,8 @@ for pkg in ("streamlit", "ollama", "requests", "numpy", "fastapi", "pydantic", "
 # Third-party packages imported only by the app source files (not by the launcher), so PyInstaller
 # can't see them by analysis.
 for pkg in ("ollama", "httpx", "requests", "bs4", "numpy", "PIL", "mss", "pyautogui", "pyperclip",
-            "pymsgbox", "pytweening", "pyscreeze", "pygetwindow", "mouseinfo"):
+            "pymsgbox", "pytweening", "pyscreeze", "pygetwindow", "mouseinfo",
+            "ddgs", "primp", "lxml", "charset_normalizer"):
     try:
         hiddenimports += collect_submodules(pkg)
     except Exception:

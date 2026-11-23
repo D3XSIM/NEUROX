@@ -31,6 +31,14 @@ def build_system_prompt(context: dict, registry: ToolRegistry | None) -> str:
     parts = [context.get("system_prompt") or DEFAULT_SYSTEM_PROMPT]
     if context.get("dynamic_persona"):
         parts.append(f"[PERSONALITY ADAPTATION]\n{context['dynamic_persona']}")
+    if context.get("project_name"):
+        proj = f"[PROJECT: {context['project_name']}]"
+        if context.get("project_instructions"):
+            proj += f"\nProject instructions (always follow):\n{context['project_instructions']}"
+        if context.get("project_folder"):
+            proj += (f"\nProject folder: {context['project_folder']} - list_dir/read_file/write_file work inside "
+                     "this folder; use them to inspect and edit the project's files.")
+        parts.append(proj)
     if context.get("copilot_msg"):
         parts.append(f"[TUTOR MODE]\n{context['copilot_msg']}")
     if context.get("user_rules"):

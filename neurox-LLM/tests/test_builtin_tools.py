@@ -1,4 +1,5 @@
 """tools.builtin: calculator safety, workspace sandbox, run_python, web tools with a fake ``requests``."""
+import base64
 import time
 
 import pytest
@@ -253,3 +254,308 @@ def test_fetch_url_rejects_non_http(reg, fake_http, url):
 def test_fetch_url_network_error(reg, fake_http):
     fake_http(requests.Timeout("slow"))
     assert is_error(call(reg, "fetch_url", "https://example.com"))
+
+
+# ------------------------------------------------------------------ web search fallback chain (faked)
+BING_HTML = """
+<html><body><ol id="b_results">
+<li class="b_algo"><h2><a href="https://www.bing.com/ck/a?!&&p=abc&ptn=3&ver=2&u={u}&ntb=1">Neurox Docs</a></h2>
+  <div class="b_caption"><p>Neurox is a local <strong>assistant</strong>.</p></div></li>
+<li class="b_ad"><h2><a href="https://www.bing.com/aclick?ld=1">Sponsored</a></h2></li>
+<li class="b_algo"><h2><a href="https://plain.example/neurox">Plain Neurox link</a></h2><p>Second snippet</p></li>
+<li class="b_algo"><h2><a href="https://www.bing.com/ck/a?!&&p=zzz&u=garbage">Undecodable neurox</a></h2></li>
+</ol></body></html>
+"""
+
+
+def _bing_wrap(url: str) -> str:
+    return "a1" + base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
+
+
+WIKI_JSON = {"batchcomplete": True, "query": {"pages": [
+    {"pageid": 2, "title": "Neurox engine", "index": 2, "fullurl": "https://en.wikipedia.org/wiki/Neurox_engine",
+     "extract": "A second article about neurox."},
+    {"pageid": 1, "title": "Neurox", "index": 1, "fullurl": "https://en.wikipedia.org/wiki/Neurox",
+     "extract": "Neurox is a fictional assistant."},
+]}}
+
+
+class RoutedResponse(FakeHTTPResponse):
+    def __init__(self, text="", status=200, content_type="text/html; charset=utf-8", url="", json_data=None,
+                 raw=None):
+        super().__init__(text, status, content_type)
+        self.url = url
+        self._json = json_data
+        if raw is not None:
+            self.content = raw
+
+    def json(self):
+        if self._json is None:
+            raise ValueError("no json")
+        return self._json
+
+
+@pytest.fixture
+def router(monkeypatch):
+    """Fake requests.get/post answering by URL substring; unknown hosts raise ConnectionError. Disables ddgs."""
+    routes: dict = {}
+    seen: list = []
+
+    def handler(method):
+        def _f(url, *a, **kw):
+            seen.append((method, url, kw))
+            for key, resp in routes.items():
+                if key in url:
+                    r = resp(url, kw) if callable(resp) else resp
+                    if isinstance(r, Exception):
+                        raise r
+                    return r
+            raise requests.ConnectionError(f"no route for {url}")
+        return _f
+    monkeypatch.setattr(builtin.requests, "get", handler("GET"))
+    monkeypatch.setattr(builtin.requests, "post", handler("POST"))
+    monkeypatch.setattr(builtin, "_ddgs_class", lambda: None)
+    return routes, seen
+
+
+DDG_CHALLENGE = RoutedResponse('<html><div class="anomaly-modal">are you a robot?</div></html>', status=202)
+
+
+def test_backend_order_and_first_failure_falls_through(monkeypatch):
+    calls = []
+
+    def failing(q, n, region, timeout):
+        calls.append("a")
+        raise requests.ConnectionError("down")
+
+    def empty(q, n, region, timeout):
+        calls.append("b")
+        return []
+
+    def good(q, n, region, timeout):
+        calls.append("c")
+        assert timeout <= builtin.HTTP_TIMEOUT
+        return [{"title": "Neurox result", "url": "https://good.example/neurox", "snippet": "about neurox"}]
+
+    def never(q, n, region, timeout):  # pragma: no cover - must not be reached
+        calls.append("d")
+        return [{"title": "x", "url": "https://x.example", "snippet": ""}]
+
+    monkeypatch.setattr(builtin, "_BACKENDS", [("a", failing), ("b", empty), ("c", good), ("d", never)])
+    out = builtin.web_search("neurox")
+    assert calls == ["a", "b", "c"]
+    assert "Neurox result" in out and "https://good.example/neurox" in out
+    assert out.strip().splitlines()[-1] == "Source: c"
+    assert builtin.search_web("neurox")[0]["url"] == "https://good.example/neurox"
+
+
+def test_ddgs_backend_used_first(monkeypatch, router):
+    routes, seen = router
+
+    class FakeDDGS:
+        def __init__(self, timeout=None, **kw):
+            self.timeout = timeout
+
+        def text(self, query, region="us-en", max_results=5, **kw):
+            assert region == "tr-tr" and query == "Türkiye'nin başkenti neresidir"
+            return [{"title": "Ankara - Türkiye'nin başkenti", "href": "https://tr.example/ankara",
+                     "body": "Türkiye'nin başkenti Ankara'dır."}]
+    monkeypatch.setattr(builtin, "_ddgs_class", lambda: FakeDDGS)
+    monkeypatch.setattr(builtin, "_dns_ok", lambda host="": True)
+    out = builtin.web_search("Türkiye'nin başkenti neresidir")
+    assert "https://tr.example/ankara" in out and "Ankara'dır" in out
+    assert out.endswith("Source: ddgs")
+    assert not seen  # no scraping needed
+
+
+def test_ddgs_skipped_when_offline(monkeypatch, router):
+    routes, _ = router
+    created = []
+
+    class MustNotRun:
+        def __init__(self, **kw):
+            created.append(kw)
+
+        def text(self, *a, **kw):
+            return [{"title": "neurox via ddgs", "href": "https://ddgs.example/", "body": ""}]
+    monkeypatch.setattr(builtin, "_ddgs_class", lambda: MustNotRun)
+    routes["duckduckgo.com"] = RoutedResponse(DDG_HTML)
+    assert builtin.web_search("neurox").endswith("Source: duckduckgo")  # conftest blocks DNS -> ddgs skipped
+    assert created == []
+
+
+def test_ddgs_failure_and_ddg_block_fall_back_to_bing(monkeypatch, router):
+    routes, seen = router
+
+    class BrokenDDGS:
+        def __init__(self, **kw):
+            pass
+
+        def text(self, *a, **kw):
+            raise RuntimeError("ratelimited")
+    monkeypatch.setattr(builtin, "_ddgs_class", lambda: BrokenDDGS)
+    monkeypatch.setattr(builtin, "_dns_ok", lambda host="": True)
+    routes["duckduckgo.com"] = DDG_CHALLENGE
+    routes["bing.com/search"] = RoutedResponse(BING_HTML.replace("{u}", _bing_wrap("https://docs.example/neurox?a=1")),
+                                               url="https://www.bing.com/search?q=neurox")
+    out = builtin.web_search("neurox docs", max_results=5)
+    assert out.endswith("Source: bing"), out
+    assert "https://docs.example/neurox?a=1" in out          # /ck/a redirect decoded
+    assert "https://plain.example/neurox" in out
+    assert "Sponsored" not in out and "aclick" not in out
+    assert "Neurox is a local assistant." in out
+    hosts = [u for _, u, _ in seen]
+    assert any("html.duckduckgo.com" in u for u in hosts) and any("lite.duckduckgo.com" in u for u in hosts)
+    assert all(kw.get("timeout", 99) <= builtin.HTTP_TIMEOUT for _, _, kw in seen)
+    assert all("Mozilla" in kw["headers"]["User-Agent"] and kw["headers"].get("Accept-Language")
+               for _, _, kw in seen)
+
+
+def test_bing_parser_and_link_decoding():
+    target = "https://example.org/path?q=ç&x=1"
+    assert builtin._decode_bing_link("https://www.bing.com/ck/a?!&&p=1&u=" + _bing_wrap(target) + "&ntb=1") == target
+    assert builtin._decode_bing_link("https://plain.example/") == "https://plain.example/"
+    bad = "https://www.bing.com/ck/a?!&&p=1&u=a1%%%"
+    assert builtin._decode_bing_link(bad) == bad  # undecodable -> unchanged, never raises
+    res = builtin._parse_bing(BING_HTML.replace("{u}", _bing_wrap("https://docs.example/n")), 10)
+    assert [r["url"] for r in res][:2] == ["https://docs.example/n", "https://plain.example/neurox"]
+    assert res[0]["title"] == "Neurox Docs" and res[1]["snippet"] == "Second snippet"
+    assert len(builtin._parse_bing(BING_HTML.replace("{u}", _bing_wrap("https://docs.example/n")), 1)) == 1
+
+
+def test_bing_turkish_region_params(router):
+    routes, seen = router
+    routes["bing.com/search"] = RoutedResponse(BING_HTML.replace("{u}", _bing_wrap("https://tr.example/")))
+    builtin._search_bing("neurox nedir", 5, "tr-tr", 5)
+    params = seen[0][2]["params"]
+    assert params["setlang"] == "tr" and params["cc"] == "TR"
+    assert seen[0][2]["headers"]["Accept-Language"].startswith("tr")
+
+
+def test_bing_junk_results_are_filtered_then_retried(router):
+    routes, seen = router
+    junk = '<li class="b_algo"><h2><a href="https://gifts.example/">Gift shop</a></h2><p>souvenirs</p></li>'
+    good = '<li class="b_algo"><h2><a href="https://python.org/downloads/">Python 3.15 release</a></h2></li>'
+    responses = iter([RoutedResponse(junk), RoutedResponse(good)])
+    routes["bing.com/search"] = lambda url, kw: next(responses)
+    res = builtin._search_bing("latest Python release", 5, "us-en", 10)
+    assert [r["url"] for r in res] == ["https://python.org/downloads/"] and len(seen) == 2
+
+
+def test_wikipedia_last_resort(router):
+    routes, seen = router
+    routes["duckduckgo.com"] = requests.Timeout("slow")
+    routes["bing.com/search"] = RoutedResponse("<html><body><li class='b_no'>No results</li></body></html>")
+    routes["wikipedia.org/w/api.php"] = RoutedResponse("", content_type="application/json", json_data=WIKI_JSON)
+    out = builtin.web_search("what is neurox")
+    assert out.endswith("Source: wikipedia"), out
+    assert out.splitlines()[0] == "1. Neurox - Wikipedia"           # sorted by search index
+    assert "https://en.wikipedia.org/wiki/Neurox" in out and "fictional assistant" in out
+    wiki_call = [kw for _, u, kw in seen if "wikipedia.org" in u][0]
+    assert wiki_call["params"]["gsrsearch"] == "neurox"              # question words stripped
+
+
+def test_wikipedia_parse_formatversion1_and_missing_url():
+    data = {"query": {"pages": {"7": {"title": "Ankara", "index": 1, "extract": "Başkent."}}}}
+    res = builtin._parse_wikipedia(data, "tr", 5)
+    assert res == [{"title": "Ankara - Wikipedia", "url": "https://tr.wikipedia.org/wiki/Ankara",
+                    "snippet": "Başkent."}]
+    assert builtin._parse_wikipedia({}, "en", 5) == []
+
+
+def test_all_backends_fail_returns_error_string(router):
+    routes, seen = router
+    routes["duckduckgo.com"] = DDG_CHALLENGE
+    routes["bing.com"] = RoutedResponse("blocked", status=503)
+    routes["wikipedia.org"] = requests.ConnectionError("offline")
+    out = builtin.web_search("neurox")
+    assert out.startswith("Error:") and "SearchBlocked" in out
+    with pytest.raises(builtin.SearchBlocked):
+        builtin.search_web("neurox")
+
+
+def test_web_search_never_raises_even_if_a_backend_is_broken(monkeypatch):
+    def boom(*a, **kw):
+        raise ZeroDivisionError("bug")
+    monkeypatch.setattr(builtin, "_BACKENDS", [("boom", boom)])
+    assert builtin.web_search("neurox").startswith("Error:")
+    assert builtin.web_search("").startswith("Error:")
+    monkeypatch.setattr(builtin, "_BACKENDS", [("empty", lambda *a: [])])
+    assert builtin.web_search("neurox", max_results="lots").startswith("No results")
+
+
+def test_search_time_budget_skips_remaining_backends(monkeypatch):
+    monkeypatch.setattr(builtin, "SEARCH_TIME_BUDGET", 0)
+    called = []
+    monkeypatch.setattr(builtin, "_BACKENDS", [("x", lambda *a: called.append(1) or [])])
+    assert builtin.web_search("neurox").startswith("Error:") and not called
+
+
+@pytest.mark.parametrize("query,region", [
+    ("Türkiye'nin başkenti neresidir", "tr-tr"), ("dolar kuru bugün", "tr-tr"), ("istanbul hava durumu nasıl", "tr-tr"),
+    ("latest Python release", "us-en"), ("Ich möchte Bücher", "us-en"),
+])
+def test_region_detection(query, region):
+    assert builtin._detect_region(query) == region
+
+
+def test_explicit_region_is_validated():
+    assert builtin._normalize_region("de-DE", "x") == "de-de"
+    assert builtin._normalize_region("nonsense", "latest news") == "us-en"
+    assert builtin._normalize_region(None, "bugün hava nasıl") == "tr-tr"
+
+
+def test_web_search_tool_schema(reg):
+    tool = reg.get("web_search")
+    assert "fetch_url" in tool.description and "price" in tool.description.lower()
+    assert "region" in tool.parameters["properties"]
+    assert "bad arguments" not in reg.call("web_search", {"query": "", "region": "tr-tr", "max_results": 2}).text
+
+
+# ------------------------------------------------------------------------------- fetch_url (faked)
+def test_fetch_url_decodes_meta_charset_without_header_charset(router):
+    routes, _ = router
+    html = '<html><head><meta charset="windows-1254"><title>Başlık</title></head><body><p>Şişli ığdır</p></body></html>'
+    routes["tr.example"] = RoutedResponse("", content_type="text/html", raw=html.encode("cp1254"))
+    out = builtin.fetch_url("https://tr.example/")
+    assert "Title: Başlık" in out and "Şişli ığdır" in out
+
+
+def test_fetch_url_utf8_without_any_charset(router):
+    routes, _ = router
+    routes["u.example"] = RoutedResponse("", content_type="text/plain", raw="Türkçe metin ✓".encode("utf-8"))
+    assert builtin.fetch_url("https://u.example/") == "Türkçe metin ✓"
+
+
+def test_fetch_url_prefers_article_and_strips_boilerplate(router):
+    routes, _ = router
+    article = "<p>" + "Real article sentence about neurox. " * 20 + "</p>"
+    html = (f"<html><head><title>News</title><style>.x{{}}</style></head><body><nav>Home | About</nav>"
+            f"<div class='sidebar'>{'Unrelated sidebar link. ' * 5}</div><article><h1>Headline</h1>{article}</article>"
+            "<footer>Copyright footer</footer><script>track()</script></body></html>")
+    routes["news.example"] = RoutedResponse(html, url="https://news.example/final")
+    out = builtin.fetch_url("https://news.example/start", max_chars=50_000)
+    assert out.startswith("Title: News\nURL: https://news.example/final")  # redirect target reported
+    assert "Headline" in out and "Real article sentence" in out
+    for junk in ("Home | About", "Copyright footer", "track()", "Unrelated sidebar", ".x{"):
+        assert junk not in out
+    assert "  " not in out and "\n\n\n" not in out
+
+
+def test_fetch_url_noscript_fallback(router):
+    routes, _ = router
+    html = ("<html><head><title>Forum</title></head><body><section id='main'></section><noscript>"
+            "<div class='post'><p>" + "Server rendered forum answer. " * 12 + "</p></div></noscript>"
+            "<script>app()</script></body></html>")
+    routes["forum.example"] = RoutedResponse(html)
+    out = builtin.fetch_url("https://forum.example/t/1")
+    assert "Server rendered forum answer." in out and "app()" not in out
+
+
+def test_fetch_url_truncates_and_rejects_binary(router):
+    routes, _ = router
+    routes["big.example"] = RoutedResponse("<html><body><p>" + "word " * 5000 + "</p></body></html>")
+    out = builtin.fetch_url("https://big.example/", max_chars=500)
+    assert "[truncated" in out and len(out) < 700
+    routes["img.example"] = RoutedResponse("", content_type="image/png", raw=b"\x89PNG")
+    assert is_error(builtin.fetch_url("https://img.example/x.png"))

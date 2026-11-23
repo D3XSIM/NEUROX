@@ -3,6 +3,9 @@ streamlit>=1.40
 ollama>=0.5
 requests>=2.31
 beautifulsoup4>=4.12
+# Web search backend #1 (metasearch, no API key). Optional at runtime: tools/builtin.py falls back to
+# DuckDuckGo/Bing scraping and Wikipedia when it is missing or blocked.
+ddgs>=9.0
 numpy>=1.26
 fastapi>=0.110
 uvicorn>=0.29

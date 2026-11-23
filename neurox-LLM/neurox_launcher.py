@@ -180,7 +180,28 @@ def run_desktop() -> int:
     return 0
 
 
+def self_test(out_path: str) -> int:
+    """Diagnostics for the frozen build: checks that bundled modules import and web search works.
+    Usage: Neurox.exe --neurox-selftest C:\\path\\report.txt"""
+    _setup_env()
+    lines = []
+    try:
+        import core.agent, core.pipeline, plugins, tools.computer  # noqa: F401
+        from tools.builtin import search_web
+        lines.append("imports: ok")
+        t0 = time.time()
+        results = search_web("Python programming language", max_results=3)
+        lines.append(f"web_search: {len(results)} results in {time.time() - t0:.1f}s")
+        lines += [f"  - {r.get('title')} | {r.get('url')}" for r in results]
+    except Exception as e:
+        lines.append(f"FAILED: {type(e).__name__}: {e}")
+    Path(out_path).write_text("\n".join(lines), encoding="utf-8")
+    return 0 if lines and not lines[-1].startswith("FAILED") else 1
+
+
 def main() -> int:
+    if len(sys.argv) >= 3 and sys.argv[1] == "--neurox-selftest":
+        return self_test(sys.argv[2])
     if len(sys.argv) >= 2 and sys.argv[1] == SERVER_FLAG:
         port = int(sys.argv[2]) if len(sys.argv) > 2 else None
         return run_server(port, headless=True)

@@ -17,6 +17,11 @@ olarak kapalıdır; açıldığında model ekran görüntüsü alıp tıklayabil
 fareyi ekranın bir köşesine çekmek işlemi anında durdurur). Söylediğin kuralları ("bundan sonra bana efendim deme")
 kalıcı olarak öğrenir, önemli bilgileri vektör hafızada saklar. Arayüz Türkçe ve İngilizce'dir.
 
+**⚡ Turbo mod** açıkken araçlar izin sormadan çalışır. **Sohbetler** kaydedilir; sol menüden eski bir sohbete
+dönüp kaldığın yerden devam edebilirsin. **Projeler**: her projenin kendi talimatları ve isteğe bağlı bir klasörü
+olur; klasör verirsen Neurox o klasördeki dosyaları okuyup düzenleyebilir. Web araması birden fazla kaynağı
+(ddgs, DuckDuckGo, Bing, Wikipedia) sırayla dener.
+
 Hızlı başlangıç: `ollama pull llama3.2 && ollama pull nomic-embed-text`, ardından
 `cd NEUROX/neurox-LLM && pip install -r requirements.txt && streamlit run app.py`.
 
@@ -40,7 +45,15 @@ Hızlı başlangıç: `ollama pull llama3.2 && ollama pull nomic-embed-text`, ar
   ignored until re-indexed.
 - **Learned rules** – statements like "from now on, answer in English" or "bundan sonra bana efendim deme" are
   stored permanently and injected into every prompt; manage them in the sidebar.
-- **Turkish / English UI**, XP & levels, chat history persistence, image attachments for vision models.
+- **⚡ Turbo mode** – one switch in the sidebar: tools run without approval prompts (the security gate for
+  destructive requests like "delete all files" still applies).
+- **Saved chats** – every conversation is saved (`data/conversations/`); reopen any old chat from the sidebar and
+  continue where you left off.
+- **Projects** – group chats into projects with their own instructions (added to every prompt) and an optional
+  folder on disk; the file tools then read and write inside that folder, so Neurox can work on a real project.
+- **Reliable web search** – `web_search` tries ddgs → DuckDuckGo → Bing → Wikipedia until one answers (no API keys),
+  and `fetch_url` extracts the readable text of a page.
+- **Turkish / English UI**, XP & levels, image attachments for vision models.
 - **HTTP API** (FastAPI) for scripting, with dangerous tools disabled by default.
 
 ## 🛠️ Installation

@@ -26,7 +26,7 @@ from core.llm import get_client  # noqa: E402
 from ui import components as ui  # noqa: E402
 from ui import theme  # noqa: E402
 from ui.i18n import LANGUAGES, set_language, t  # noqa: E402
-from utils.history_manager import clear_history, load_history, save_history  # noqa: E402
+from utils import conversations as convs  # noqa: E402
 
 st.set_page_config(page_title="Neurox", page_icon="🧠", layout="wide")
 
@@ -103,16 +103,25 @@ def _xp_progress(state: dict) -> tuple[int, int, float]:
 
 
 # ===================================================================================== state
-def _load_display_history() -> list[dict]:
-    try:
-        raw = load_history() or []
-    except Exception:
-        return []
-    out = []
-    for m in raw:
-        if isinstance(m, dict) and m.get("role") in ("user", "assistant") and isinstance(m.get("content", ""), str):
-            out.append(m)
-    return out
+def _display_messages(raw) -> list[dict]:
+    return [m for m in (raw or []) if isinstance(m, dict) and m.get("role") in ("user", "assistant")
+            and isinstance(m.get("content", ""), str)]
+
+
+def open_conversation(conv: dict) -> None:
+    """Make ``conv`` the active chat (``ss.messages`` is the same list object as ``conv['messages']``)."""
+    conv["messages"] = _display_messages(conv.get("messages"))
+    ss.conv = conv
+    ss.messages = conv["messages"]
+    ss.pending = None
+
+
+def start_new_chat() -> None:
+    open_conversation(convs.new_conversation(project_id=ss.get("project_id")))
+
+
+def active_project() -> dict | None:
+    return convs.get_project(ss.get("project_id"))
 
 
 def init_state() -> None:
@@ -125,8 +134,11 @@ def init_state() -> None:
             ss.init_error = None
         except Exception as e:
             ss.neurox, ss.init_error = None, f"{type(e).__name__}: {e}"
-    if "messages" not in ss:
-        ss.messages = _load_display_history()
+    if "conv" not in ss:
+        ss.project_id = None
+        migrated = convs.migrate_legacy_history()  # old single chat_history.json → first saved chat
+        conv = convs.load_conversation(migrated) if migrated else None
+        open_conversation(conv or convs.new_conversation())
     ss.setdefault("pending", None)       # approval waiting: {"result", "registry", "events", "text", "thoughts"}
     ss.setdefault("toast", None)
     ss.setdefault("mem_nonce", 0)
@@ -153,7 +165,8 @@ def apply_settings(new: Settings) -> None:
 
 def save_messages() -> None:
     try:
-        save_history(ss.messages)
+        ss.conv["messages"] = ss.messages
+        convs.save_conversation(ss.conv)
     except Exception:
         pass
 
@@ -216,10 +229,88 @@ def render_computer(s: Settings) -> dict:
     ok, reason = computer_status()
     st.caption(t("computer_available") if ok else t("computer_unavailable", reason=reason[:200]))
 
-    auto_approve = st.checkbox(t("auto_approve"), value=s.auto_approve)
-    if auto_approve:
-        st.error(t("auto_approve_warning"), icon="🚨")
-    return {"computer_use_enabled": computer, "auto_approve": auto_approve}
+    return {"computer_use_enabled": computer}
+
+
+def render_turbo(s: Settings) -> dict:
+    turbo = st.toggle(t("turbo"), value=s.auto_approve, help=t("turbo_help"), key="nx_turbo")
+    if turbo:
+        st.caption(t("turbo_on"))
+    return {"auto_approve": turbo}
+
+
+def render_projects() -> None:
+    projects = convs.list_projects()
+    ids = [None] + [p["id"] for p in projects]
+    names = {p["id"]: p["name"] for p in projects}
+    current = ss.get("project_id") if ss.get("project_id") in ids else None
+    # No widget key on purpose: when the project changes in code (new/deleted project), the new ``index``
+    # gives the widget a new identity, so it shows the new value instead of its stale state.
+    choice = st.selectbox(t("project"), ids, index=ids.index(current),
+                          format_func=lambda i: names.get(i, t("no_project")))
+    if choice != current:
+        ss.project_id = choice
+        start_new_chat()
+        st.rerun()
+
+    proj = convs.get_project(current)
+    c1, c2 = st.container(), st.container()
+    with c1.popover(t("new_project"), width="stretch"):
+        with st.form("nx_new_project", clear_on_submit=True, border=False):
+            name = st.text_input(t("project_name"))
+            instructions = st.text_area(t("project_instructions"), placeholder=t("project_instructions_ph"))
+            folder = st.text_input(t("project_folder"), help=t("project_folder_help"))
+            if st.form_submit_button(t("project_create"), type="primary") and name.strip():
+                try:
+                    proj = convs.save_project(name, instructions, folder)
+                    ss.project_id = proj["id"]
+                    start_new_chat()
+                    ss.toast = t("project_created", name=proj["name"])
+                    st.rerun()
+                except ValueError:
+                    st.error(t("project_folder_bad"))
+                except Exception as e:
+                    st.error(t("project_error", error=e))
+    if proj:
+        with c2.popover(t("project_settings"), width="stretch"):
+            with st.form(f"nx_edit_project_{proj['id']}", border=False):
+                name = st.text_input(t("project_name"), value=proj["name"])
+                instructions = st.text_area(t("project_instructions"), value=proj.get("instructions", ""))
+                folder = st.text_input(t("project_folder"), value=proj.get("folder", ""), help=t("project_folder_help"))
+                if st.form_submit_button(t("project_save"), type="primary"):
+                    try:
+                        convs.save_project(name, instructions, folder, project_id=proj["id"])
+                        st.rerun()
+                    except ValueError:
+                        st.error(t("project_folder_bad"))
+            if st.button(t("project_delete"), key="nx_del_project"):
+                convs.delete_project(proj["id"])
+                ss.project_id = None
+                start_new_chat()
+                st.rerun()
+
+
+def render_chat_list() -> None:
+    st.caption(t("chats"))
+    chats = convs.list_conversations(ss.get("project_id"))
+    with st.container(key="nx_chats"):
+        if not chats:
+            st.caption(t("chats_empty"))
+        for c in chats[:40]:
+            is_current = c["id"] == ss.conv.get("id")
+            if is_current:
+                c1, c2 = st.columns([6, 1], vertical_alignment="center")
+                c1.button(c.get("title") or "…", key=f"nx_chat_{c['id']}", type="primary", width="stretch")
+                if c2.button("🗑", key=f"nx_delchat_{c['id']}", help=t("delete_chat"), type="tertiary"):
+                    convs.delete_conversation(c["id"])
+                    start_new_chat()
+                    st.rerun()
+            elif st.button(c.get("title") or "…", key=f"nx_chat_{c['id']}", width="stretch",
+                           disabled=bool(ss.pending)):
+                conv = convs.load_conversation(c["id"])
+                if conv:
+                    open_conversation(conv)
+                    st.rerun()
 
 
 def render_display(s: Settings) -> dict:
@@ -347,16 +438,14 @@ def render_sidebar(neurox) -> None:
     s: Settings = ss.settings
     with st.sidebar:
         theme.brand(t("app_title"), "Cortex · v2")
-        if st.button(t("new_chat"), key="nx_new_chat", width="stretch"):
-            try:
-                clear_history()
-            except Exception:
-                pass
-            ss.messages = []
-            ss.pending = None
+        if st.button(t("new_chat"), key="nx_new_chat", width="stretch", disabled=bool(ss.pending)):
+            start_new_chat()
             st.rerun()
-        render_xp()
         status_slot = st.container()
+        turbo_cfg = render_turbo(s)
+        render_projects()
+        render_chat_list()
+        st.divider()
 
         with st.expander(t("section_connection")):
             conn = render_connection(s)
@@ -364,7 +453,7 @@ def render_sidebar(neurox) -> None:
             ss.conn_ok = conn["reachable"]
             theme.status(t("connected", count=len(conn["models"])).lstrip("✅ ") if conn["reachable"]
                          else t("not_connected").lstrip("❌ "), conn["reachable"])
-        with st.expander(t("section_models"), expanded=not conn["reachable"] or not conn["models"]):
+        with st.expander(t("section_models")):
             model_cfg = render_models(s, conn)
         with st.expander(t("section_tools")):
             tool_cfg = render_tools(s, getattr(neurox, "llm", None))
@@ -373,7 +462,7 @@ def render_sidebar(neurox) -> None:
         with st.expander(t("section_display")):
             display_cfg = render_display(s)
         new = replace(s, provider=conn["provider"], base_url=conn["base_url"], api_key=conn["api_key"],
-                      **model_cfg, **tool_cfg, **computer_cfg, **display_cfg)
+                      **model_cfg, **tool_cfg, **computer_cfg, **display_cfg, **turbo_cfg)
         if new != s:
             apply_settings(new)
 
@@ -382,6 +471,7 @@ def render_sidebar(neurox) -> None:
         render_rules()
         render_memory(neurox)
         st.divider()
+        render_xp()
         st.caption(t("footer"))
 
 
@@ -575,8 +665,12 @@ def handle_submission(neurox, value) -> None:
 
 def render_header(s: Settings) -> None:
     online = bool(ss.get("conn_ok"))
-    theme.hero(t("app_title"), t("app_subtitle", provider=t(f"provider_{s.provider}"), model=s.chat_model).split(" · ")[0],
-               s.chat_model, online, t("status_online") if online else t("status_offline"))
+    proj = active_project()
+    subtitle = (t("project_in", name=proj["name"]) if proj else
+                t("app_subtitle", provider=t(f"provider_{s.provider}"), model=s.chat_model).split(" · ")[0])
+    title = ss.conv.get("title") if ss.messages and ss.conv.get("title") else t("app_title")
+    theme.hero(title, subtitle, s.chat_model, online, t("status_online") if online else t("status_offline"),
+               turbo=t("turbo_chip") if s.auto_approve else None)
 
 
 SUGGESTIONS = ("sugg1", "sugg2", "sugg3", "sugg4")
@@ -613,6 +707,8 @@ def main() -> None:
     neurox = ss.neurox
     render_sidebar(neurox)
     s = ss.settings  # may have changed in the sidebar
+    if neurox is not None:
+        neurox.set_project(active_project())  # project instructions + project folder for the file tools
 
     render_header(s)
     if neurox is None:
