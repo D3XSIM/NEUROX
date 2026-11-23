@@ -1,8 +1,14 @@
-streamlit
-ollama
-requests
-beautifulsoup4
-numpy
-fastapi
-uvicorn
-discord.py
+# Runtime dependencies for Neurox
+streamlit>=1.40
+ollama>=0.5
+requests>=2.31
+beautifulsoup4>=4.12
+numpy>=1.26
+fastapi>=0.110
+uvicorn>=0.29
+pydantic>=2.5
+# Computer use (screenshots + mouse/keyboard). Imported lazily, only needed when enabled.
+pyautogui>=0.9.54
+mss>=9.0
+pillow>=10.0
+pyperclip>=1.8

@@ -1,54 +1,48 @@
+"""Pre-search for RESEARCHER turns: runs one web search before the agent starts, so even models without
+native tool calling get fresh results in their system prompt. Uses the shared ``tools.builtin.web_search``."""
+from __future__ import annotations
+
+import logging
+
+from core.llm import LLMError
 from core.plugin_interface import NeuroxPlugin
-import requests
-from bs4 import BeautifulSoup
-import urllib.parse
-import ollama
+from tools.builtin import web_search
+
+log = logging.getLogger(__name__)
+
+REFINE_PROMPT = ("Rewrite the user's message as a short web search query (max 8 words, same language, no quotes). "
+                 "Reply with the query only.")
+
 
 class SearchPlugin(NeuroxPlugin):
     def __init__(self):
         super().__init__()
         self.name = "Search Plugin"
-        self.description = "Performs web searches."
+        self.description = "Performs a web search for research questions."
         self.order = 20
 
-    def execute(self, context: dict) -> dict:
-        if 'search_query' in context and not context.get('search_results'):
-            query = context['search_query']
-            
-            # Optimization
-            if len(query.split()) > 6:
-                try:
-                    refine_prompt = f"Extract a concise Google search query from: '{query}'. Return ONLY the query."
-                    model = context.get('model_name', 'phi3')
-                    resp = ollama.chat(model=model, messages=[{'role': 'system', 'content': refine_prompt}], stream=False)
-                    query = resp['message']['content'].strip().strip('"')
-                except:
-                    pass
-            
-            print(f"[{self.name}] Searching: {query}")
-            results = self._search_web(query)
-            return {'search_results': results}
-        return None
+    def execute(self, context: dict) -> dict | None:
+        if not (context.get("user_input") or "").strip() or context.get("blocked"):
+            return None
+        query = (context.get("search_query") or "").strip()
+        if not query or context.get("search_results"):
+            return None
 
-    def _search_web(self, query, max_results=5):
-        try:
-            url = "https://html.duckduckgo.com/html/"
-            payload = {'q': query}
-            headers = {"User-Agent": "Mozilla/5.0 ..."}
-            
-            response = requests.post(url, data=payload, headers=headers)
-            if response.status_code != 200: return "Error retrieving results."
+        if len(query.split()) > 12 and context.get("llm") is not None:  # long message -> condense
+            try:
+                refined = context["llm"].chat([{"role": "system", "content": REFINE_PROMPT},
+                                               {"role": "user", "content": query[:1000]}], temperature=0).content
+                refined = refined.strip().strip('"').splitlines()[0].strip() if refined.strip() else ""
+                if 0 < len(refined) <= 200:
+                    query = refined
+            except LLMError as e:
+                log.info("Query refinement skipped: %s", e)
+        query = query[:300]
 
-            soup = BeautifulSoup(response.text, 'html.parser')
-            results = []
-            for result in soup.find_all('div', class_='result'):
-                title_tag = result.find('a', class_='result__a')
-                if title_tag:
-                    title = title_tag.get_text(strip=True)
-                    link = title_tag['href']
-                    results.append(f"Title: {title}\nLink: {link}\n")
-                if len(results) >= max_results: break
-                    
-            return "\n".join(results) if results else "No results found."
-        except Exception as e:
-            return f"Error: {e}"
+        results = web_search(query, max_results=5)
+        ok = not (results.startswith("Error") or results.startswith("No results"))
+        trace = context.get("trace")
+        if isinstance(trace, list):
+            trace.append({"type": "plugin", "name": self.name,
+                          "info": f"web_search({query!r}) -> {'ok' if ok else results[:120]}"})
+        return {"search_query": query, "search_results": results if ok else None}
