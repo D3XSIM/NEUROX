@@ -27,3 +27,7 @@ generated_tool.py
 .idea/
 .DS_Store
 Thumbs.db
+
+# PyInstaller build output
+neurox-LLM/build/
+neurox-LLM/dist/

@@ -92,6 +92,20 @@ streamlit run app.py
 Pick provider, chat model and embedding model in the sidebar, choose which tools are enabled, and optionally turn
 on computer use. Settings are saved to `data/settings.json`.
 
+### Windows .exe
+
+`Neurox.exe` is a single-file build that starts the chat UI and opens it in your browser — no Python needed.
+Download it from the [Releases](https://github.com/D3XSIM/NEUROX/releases) page, or build it yourself:
+
+```powershell
+cd NEUROX\neurox-LLM
+.\build_exe.ps1          # -> dist\Neurox.exe
+```
+
+The console window shows logs; close it to stop Neurox. User data (settings, chat history, memory, rules, XP) is
+stored in `%LOCALAPPDATA%\Neurox`. You still need Ollama or LM Studio running for the model itself.
+The first start takes a few seconds while the exe unpacks.
+
 ### HTTP API
 
 ```bash

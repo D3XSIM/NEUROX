@@ -7,6 +7,8 @@ textColor = "#e6e6f0"
 
 [server]
 maxUploadSize = 50
+# Only this computer may connect: Neurox can run code and control the mouse/keyboard.
+address = "localhost"
 
 [browser]
 gatherUsageStats = false

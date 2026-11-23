@@ -1,0 +1,58 @@
+# PyInstaller spec for Neurox.exe (single file).  Build:  .\build_exe.ps1
+# The app's own source (app.py, core/, plugins/, tools/, ui/, utils/) is shipped as plain files because
+# Streamlit runs app.py as a script and plugins are discovered from the plugins/ folder at runtime.
+from PyInstaller.utils.hooks import collect_all, collect_submodules, copy_metadata
+
+datas, binaries, hiddenimports = [], [], []
+
+for pkg in ("streamlit",):
+    d, b, h = collect_all(pkg)
+    datas += d; binaries += b; hiddenimports += h
+
+for pkg in ("streamlit", "ollama", "requests", "numpy", "fastapi", "pydantic", "pyautogui", "pillow", "mss",
+            "beautifulsoup4", "pyperclip"):
+    try:
+        datas += copy_metadata(pkg)
+    except Exception:
+        pass
+
+# Third-party packages imported only by the app source files (not by the launcher), so PyInstaller
+# can't see them by analysis.
+for pkg in ("ollama", "httpx", "requests", "bs4", "numpy", "PIL", "mss", "pyautogui", "pyperclip",
+            "pymsgbox", "pytweening", "pyscreeze", "pygetwindow", "mouseinfo"):
+    try:
+        hiddenimports += collect_submodules(pkg)
+    except Exception:
+        pass
+hiddenimports += ["ctypes.wintypes", "sqlite3", "json", "uuid", "ast", "tempfile", "subprocess"]
+
+datas += [
+    ("app.py", "."),
+    ("core", "core"),
+    ("plugins", "plugins"),
+    ("tools", "tools"),
+    ("ui", "ui"),
+    ("utils", "utils"),
+    (".streamlit/config.toml", ".streamlit"),
+]
+
+a = Analysis(
+    ["neurox_launcher.py"],
+    pathex=["."],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
+    excludes=["pytest", "tests", "tkinter.test", "matplotlib", "IPython"],
+    noarchive=False,
+)
+pyz = PYZ(a.pure)
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name="Neurox",
+    console=True,  # the console window shows logs; closing it stops Neurox
+    upx=False,
+)
