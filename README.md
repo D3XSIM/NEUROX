@@ -1,11 +1,37 @@
-# 🧠 Neurox
+<div align="center">
 
-**Neurox** is a local AI assistant with a Streamlit chat UI. It runs on your own machine against
-[Ollama](https://ollama.com), [LM Studio](https://lmstudio.ai) or any OpenAI-compatible server, and adds a
-plugin-based "cognitive pipeline", native tool calling with human approval, optional computer use,
-long-term vector memory and learned user rules.
+<img src="neurox-LLM/assets/neurox.png" width="104" alt="Neurox logo">
 
-![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-blue) ![License](https://img.shields.io/badge/License-MIT-purple)
+# Neurox
+
+**Your private AI assistant that runs on your own computer.**<br>
+Chat, search the web, run code, work on your projects, even use your mouse and keyboard. 100% local.
+
+**Bilgisayarında çalışan, sana ait yapay zekâ asistanı.**<br>
+Sohbet et, web'de arat, kod çalıştır, projelerinde çalış, hatta fare ve klavyeni kullanmasına izin ver.
+
+[![Download](https://img.shields.io/github/v/release/D3XSIM/NEUROX?label=Download%20Neurox.exe&style=for-the-badge&color=8b5cf6&logo=windows)](https://github.com/D3XSIM/NEUROX/releases/latest)
+
+[![CI](https://github.com/D3XSIM/NEUROX/actions/workflows/ci.yml/badge.svg)](https://github.com/D3XSIM/NEUROX/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776ab?logo=python&logoColor=white)
+![Platform](https://img.shields.io/badge/Windows-10%20%7C%2011-0078d4?logo=windows&logoColor=white)
+![Ollama](https://img.shields.io/badge/Ollama-supported-000000)
+![LM Studio](https://img.shields.io/badge/LM%20Studio-supported-4f46e5)
+![License](https://img.shields.io/badge/License-MIT-a855f7)
+
+<img src="docs/screenshot.png" width="860" alt="Neurox screenshot">
+
+</div>
+
+---
+
+Neurox is a local AI assistant with a modern desktop UI. It runs against [Ollama](https://ollama.com),
+[LM Studio](https://lmstudio.ai) or any OpenAI-compatible server and adds a plugin-based "cognitive pipeline",
+native tool calling (with approval or ⚡ turbo mode), optional computer use, saved chats, projects, long-term
+vector memory and learned user rules. Your chats and files never leave your computer.
+
+**Quick start (Windows):** download `Neurox.exe` from [Releases](https://github.com/D3XSIM/NEUROX/releases/latest),
+install [Ollama](https://ollama.com/download), run `ollama pull llama3.2`, then double-click `Neurox.exe`.
 
 ## 🇹🇷 Kısa özet
 
