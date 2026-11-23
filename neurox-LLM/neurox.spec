@@ -5,9 +5,13 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules, copy_metada
 
 datas, binaries, hiddenimports = [], [], []
 
-for pkg in ("streamlit",):
-    d, b, h = collect_all(pkg)
-    datas += d; binaries += b; hiddenimports += h
+for pkg in ("streamlit", "webview", "clr_loader", "pythonnet"):
+    try:
+        d, b, h = collect_all(pkg)
+        datas += d; binaries += b; hiddenimports += h
+    except Exception:
+        pass
+hiddenimports += ["clr", "webview.platforms.edgechromium", "webview.platforms.winforms"]
 
 for pkg in ("streamlit", "ollama", "requests", "numpy", "fastapi", "pydantic", "pyautogui", "pillow", "mss",
             "beautifulsoup4", "pyperclip"):
@@ -34,6 +38,7 @@ datas += [
     ("ui", "ui"),
     ("utils", "utils"),
     (".streamlit/config.toml", ".streamlit"),
+    ("assets", "assets"),
 ]
 
 a = Analysis(
@@ -53,6 +58,7 @@ exe = EXE(
     a.datas,
     [],
     name="Neurox",
-    console=True,  # the console window shows logs; closing it stops Neurox
+    console=False,  # native window app; server logs go to %LOCALAPPDATA%\Neurox\neurox.log
+    icon="assets/neurox.ico",
     upx=False,
 )

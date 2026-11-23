@@ -196,6 +196,44 @@ STRINGS: dict[str, dict[str, str]] = {
     },
 }
 
+# Strings for the redesigned layout (welcome screen, suggestion cards, sidebar groups).
+STRINGS["tr"].update({
+    "new_chat": "＋  Yeni sohbet",
+    "welcome_title": "Bugün sana nasıl yardım edebilirim?",
+    "welcome_sub": "Soru sor, dosya veya görsel ekle. Web'de arayabilir, kod çalıştırabilir, hatta bilgisayarını kullanabilirim.",
+    "sugg1_title": "🔎 Web'de araştır", "sugg1_prompt": "Yapay zekâ dünyasındaki bu haftanın en önemli haberlerini araştır ve özetle.",
+    "sugg2_title": "🐍 Kod yaz ve çalıştır", "sugg2_prompt": "Python ile 1'den 100'e kadar asal sayıları bulan bir kod yaz ve çalıştır.",
+    "sugg3_title": "🧠 Bir konuyu öğret", "sugg3_prompt": "Bana adım adım makine öğrenmesinin temellerini öğret.",
+    "sugg4_title": "📋 Plan çıkar", "sugg4_prompt": "Bir mobil uygulama projesi için 4 haftalık bir plan hazırla ve riskleri değerlendir.",
+    "section_computer": "🖱️ Bilgisayar kontrolü",
+    "section_learning": "🎓 Hafıza ve öğrenme",
+    "status_online": "Çevrimiçi",
+    "status_offline": "Çevrimdışı",
+    "level": "Seviye",
+    "footer": "Neurox yerel çalışır · verilerin bilgisayarında kalır",
+    "friendly_unreachable": "⚠️ **Model sunucusuna bağlanamadım.**\n\n"
+                            "Ollama'yı başlat (`ollama serve`) ya da LM Studio'da yerel sunucuyu aç, sonra tekrar dene. "
+                            "Bağlantı ayarları sol menüde **🔌 Bağlantı** bölümünde.",
+})
+STRINGS["en"].update({
+    "new_chat": "＋  New chat",
+    "welcome_title": "How can I help you today?",
+    "welcome_sub": "Ask anything, attach files or images. I can search the web, run code and even use your computer.",
+    "sugg1_title": "🔎 Research the web", "sugg1_prompt": "Research the most important AI news of this week and summarize it.",
+    "sugg2_title": "🐍 Write & run code", "sugg2_prompt": "Write and run Python code that finds all prime numbers from 1 to 100.",
+    "sugg3_title": "🧠 Teach me something", "sugg3_prompt": "Teach me the basics of machine learning step by step.",
+    "sugg4_title": "📋 Make a plan", "sugg4_prompt": "Create a 4-week plan for a mobile app project and assess the risks.",
+    "section_computer": "🖱️ Computer use",
+    "section_learning": "🎓 Memory & learning",
+    "status_online": "Online",
+    "status_offline": "Offline",
+    "level": "Level",
+    "footer": "Neurox runs locally · your data stays on your computer",
+    "friendly_unreachable": "⚠️ **I couldn't reach the model server.**\n\n"
+                            "Start Ollama (`ollama serve`) or LM Studio's local server, then try again. "
+                            "Connection settings are under **🔌 Connection** in the sidebar.",
+})
+
 _current = DEFAULT_LANGUAGE
 
 

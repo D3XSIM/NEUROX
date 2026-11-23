@@ -1,9 +1,28 @@
 [theme]
 base = "dark"
 primaryColor = "#8b5cf6"
-backgroundColor = "#0e1117"
-secondaryBackgroundColor = "#161b26"
-textColor = "#e6e6f0"
+backgroundColor = "#0b0d14"
+secondaryBackgroundColor = "#151925"
+textColor = "#e7e9f3"
+linkColor = "#a78bfa"
+borderColor = "#252b3d"
+codeBackgroundColor = "#10131c"
+font = "Inter, 'Segoe UI', system-ui, sans-serif"
+headingFont = "Inter, 'Segoe UI', system-ui, sans-serif"
+codeFont = "'JetBrains Mono', 'Cascadia Code', Consolas, monospace"
+baseFontSize = 15
+baseRadius = "12px"
+buttonRadius = "10px"
+showWidgetBorder = true
+showSidebarBorder = false
+
+[theme.sidebar]
+backgroundColor = "#0f121b"
+secondaryBackgroundColor = "#171b28"
+borderColor = "#232839"
+
+[client]
+toolbarMode = "minimal"
 
 [server]
 maxUploadSize = 50

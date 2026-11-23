@@ -12,3 +12,4 @@ pyautogui>=0.9.54
 mss>=9.0
 pillow>=10.0
 pyperclip>=1.8
+pywebview>=5.0; sys_platform == "win32"

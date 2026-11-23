@@ -24,6 +24,7 @@ import streamlit as st  # noqa: E402
 from core.config import PROVIDERS, Settings  # noqa: E402
 from core.llm import get_client  # noqa: E402
 from ui import components as ui  # noqa: E402
+from ui import theme  # noqa: E402
 from ui.i18n import LANGUAGES, set_language, t  # noqa: E402
 from utils.history_manager import clear_history, load_history, save_history  # noqa: E402
 
@@ -159,7 +160,6 @@ def save_messages() -> None:
 
 # ===================================================================================== sidebar
 def render_connection(s: Settings) -> dict:
-    st.subheader(t("section_connection"))
     providers = list(PROVIDERS)
     provider = st.selectbox(t("provider"), providers,
                             index=providers.index(s.provider) if s.provider in providers else 0,
@@ -171,10 +171,6 @@ def render_connection(s: Settings) -> dict:
         api_key = st.text_input(t("api_key"), value=s.api_key, type="password")
 
     models, error = fetch_models(provider, base_url, api_key)
-    if not error:
-        st.success(t("connected", count=len(models)))
-    else:
-        st.error(t("not_connected"))
     if st.button(t("refresh"), key="refresh_models", type="tertiary"):
         fetch_models.clear()
         computer_status.clear()
@@ -188,7 +184,6 @@ def render_connection(s: Settings) -> dict:
 
 
 def render_models(s: Settings, conn: dict) -> dict:
-    st.subheader(t("section_models"))
     models = conn["models"]
     if conn["reachable"] and models:
         current = _match_model(s.chat_model, models)
@@ -206,13 +201,15 @@ def render_models(s: Settings, conn: dict) -> dict:
 
 
 def render_tools(s: Settings, llm) -> dict:
-    st.subheader(t("section_tools"))
     tools_enabled = st.toggle(t("tools_enabled"), value=s.tools_enabled)
     names = available_tool_names(s, llm)
     enabled = st.multiselect(t("enabled_tools"), names, default=[n for n in s.enabled_tools if n in names],
                              disabled=not tools_enabled)
     max_steps = st.number_input(t("max_agent_steps"), min_value=1, max_value=50, value=int(s.max_agent_steps), step=1)
+    return {"tools_enabled": tools_enabled, "enabled_tools": list(enabled), "max_agent_steps": int(max_steps)}
 
+
+def render_computer(s: Settings) -> dict:
     computer = st.toggle(t("computer_use"), value=s.computer_use_enabled)
     if computer:
         st.warning(t("computer_use_warning"), icon="⚠️")
@@ -222,12 +219,10 @@ def render_tools(s: Settings, llm) -> dict:
     auto_approve = st.checkbox(t("auto_approve"), value=s.auto_approve)
     if auto_approve:
         st.error(t("auto_approve_warning"), icon="🚨")
-    return {"tools_enabled": tools_enabled, "enabled_tools": list(enabled), "max_agent_steps": int(max_steps),
-            "computer_use_enabled": computer, "auto_approve": auto_approve}
+    return {"computer_use_enabled": computer, "auto_approve": auto_approve}
 
 
 def render_display(s: Settings) -> dict:
-    st.subheader(t("section_display"))
     show_thoughts = st.toggle(t("show_thoughts"), value=s.show_thoughts)
     langs = list(LANGUAGES)
     language = st.radio(t("language"), langs, index=langs.index(s.language) if s.language in langs else 0,
@@ -244,11 +239,11 @@ def render_xp() -> None:
         level, xp, progress = _xp_progress(state if isinstance(state, dict) else vars(state))
     except Exception:
         return
-    st.progress(progress, text=t("xp_label", level=level, xp=xp))
+    theme.xp_card(t("level"), level, xp, progress)
 
 
 def render_teach(neurox) -> None:
-    with st.expander(t("teach_title")):
+    with st.popover(t("teach_title"), width="stretch"):
         st.caption(t("teach_help"))
         with st.form("teach_form", clear_on_submit=True, border=False):
             text = st.text_area(t("teach_title"), label_visibility="collapsed")
@@ -274,7 +269,7 @@ def _rule_fields(rule, index: int) -> tuple[object, str]:
 
 
 def render_rules() -> None:
-    with st.expander(t("rules_title")):
+    with st.popover(t("rules_title"), width="stretch"):
         load_rules = _optional("plugins.misc_plugins", "load_rules")
         add_rule = _optional("plugins.misc_plugins", "add_rule")
         delete_rule = _optional("plugins.misc_plugins", "delete_rule")
@@ -327,7 +322,7 @@ def _memory_store(neurox):
 
 
 def render_memory(neurox) -> None:
-    with st.expander(t("memory_title")):
+    with st.popover(t("memory_title"), width="stretch"):
         try:
             store = _memory_store(neurox)
             items = store.list() if store is not None and hasattr(store, "list") else None
@@ -351,23 +346,8 @@ def render_memory(neurox) -> None:
 def render_sidebar(neurox) -> None:
     s: Settings = ss.settings
     with st.sidebar:
-        st.title(t("sidebar_title"))
-        render_xp()
-        conn = render_connection(s)
-        model_cfg = render_models(s, conn)
-        tool_cfg = render_tools(s, getattr(neurox, "llm", None))
-        display_cfg = render_display(s)
-        new = replace(s, provider=conn["provider"], base_url=conn["base_url"], api_key=conn["api_key"],
-                      **model_cfg, **tool_cfg, **display_cfg)
-        if new != s:
-            apply_settings(new)
-
-        st.divider()
-        render_teach(neurox)
-        render_rules()
-        render_memory(neurox)
-        st.divider()
-        if st.button(t("clear_chat"), key="clear_chat", width="stretch"):
+        theme.brand(t("app_title"), "Cortex · v2")
+        if st.button(t("new_chat"), key="nx_new_chat", width="stretch"):
             try:
                 clear_history()
             except Exception:
@@ -375,6 +355,34 @@ def render_sidebar(neurox) -> None:
             ss.messages = []
             ss.pending = None
             st.rerun()
+        render_xp()
+        status_slot = st.container()
+
+        with st.expander(t("section_connection")):
+            conn = render_connection(s)
+        with status_slot:
+            ss.conn_ok = conn["reachable"]
+            theme.status(t("connected", count=len(conn["models"])).lstrip("✅ ") if conn["reachable"]
+                         else t("not_connected").lstrip("❌ "), conn["reachable"])
+        with st.expander(t("section_models"), expanded=not conn["reachable"] or not conn["models"]):
+            model_cfg = render_models(s, conn)
+        with st.expander(t("section_tools")):
+            tool_cfg = render_tools(s, getattr(neurox, "llm", None))
+        with st.expander(t("section_computer")):
+            computer_cfg = render_computer(s)
+        with st.expander(t("section_display")):
+            display_cfg = render_display(s)
+        new = replace(s, provider=conn["provider"], base_url=conn["base_url"], api_key=conn["api_key"],
+                      **model_cfg, **tool_cfg, **computer_cfg, **display_cfg)
+        if new != s:
+            apply_settings(new)
+
+        st.caption(t("section_learning"))
+        render_teach(neurox)
+        render_rules()
+        render_memory(neurox)
+        st.divider()
+        st.caption(t("footer"))
 
 
 # ===================================================================================== chat
@@ -421,6 +429,9 @@ def build_canonical(messages: list[dict]) -> list[dict]:
 
 def finish_turn(text: str, images: list[str] | None = None, thoughts: str | None = None,
                 toast: str | None = None) -> None:
+    if text and text.startswith("⚠️ LLM error") and "not reachable" in text:
+        thoughts = (str(thoughts) + "\n\n" if thoughts else "") + text  # keep the raw error in the inner monologue
+        text = t("friendly_unreachable")
     msg = {"role": "assistant", "content": text or t("empty_reply")}
     if images:
         msg["images"] = list(images)[-ui.MAX_STORED_IMAGES:]
@@ -445,6 +456,7 @@ def _store_pending(result, registry, events: list, text: str, thoughts) -> None:
 def run_turn_ui(neurox, content: str, images: list[str]) -> None:
     canonical = build_canonical(ss.messages)
     with st.chat_message("assistant", avatar="🧠"):
+        theme.marker("assistant")
         live = LiveTurn()
         try:
             ctx = neurox.run_turn(content, canonical, images=images, on_token=live.on_token, on_event=live.on_event)
@@ -515,13 +527,14 @@ def render_approval(neurox) -> None:
     name = getattr(call, "name", "?")
     args = getattr(call, "arguments", {}) or {}
     with st.chat_message("assistant", avatar="🧠"):
+        theme.marker("assistant")
         if p.get("text"):
             st.markdown(p["text"])
         if p.get("events"):
             with st.expander(t("steps")):
                 for ev in p["events"]:
                     ui.render_event(ev)
-        with st.container(border=True):
+        with st.container(key="nx_approval"):
             st.warning(t("approval_title", tool=name), icon="⚠️")
             st.caption(t("approval_help"))
             st.code(json.dumps(args, indent=2, ensure_ascii=False, default=str), language="json")
@@ -561,14 +574,28 @@ def handle_submission(neurox, value) -> None:
 
 
 def render_header(s: Settings) -> None:
-    st.markdown(f"## 🧠 {t('app_title')}")
-    st.caption(t("app_subtitle", provider=t(f"provider_{s.provider}"), model=s.chat_model))
+    online = bool(ss.get("conn_ok"))
+    theme.hero(t("app_title"), t("app_subtitle", provider=t(f"provider_{s.provider}"), model=s.chat_model).split(" · ")[0],
+               s.chat_model, online, t("status_online") if online else t("status_offline"))
 
 
-def render_history(show_thoughts: bool) -> None:
-    if not ss.messages and not ss.pending:
-        with st.chat_message("assistant", avatar="🧠"):
-            st.markdown(t("welcome"))
+SUGGESTIONS = ("sugg1", "sugg2", "sugg3", "sugg4")
+
+
+def render_welcome(enabled: bool) -> None:
+    theme.welcome(t("welcome_title"), t("welcome_sub"))
+    with st.container(key="nx_suggestions"):
+        cols = st.columns(2)
+        for i, key in enumerate(SUGGESTIONS):
+            label = f"**{t(key + '_title')}**\n\n{t(key + '_prompt')}"
+            if cols[i % 2].button(label, key=f"nx_{key}", width="stretch", disabled=not enabled):
+                ss.queued_prompt = t(key + "_prompt")
+                st.rerun()
+
+
+def render_history(show_thoughts: bool, enabled: bool = True) -> None:
+    if not ss.messages and not ss.pending and not ss.get("queued_prompt"):
+        render_welcome(enabled)
     for msg in ss.messages:
         ui.render_message(msg, show_thoughts=show_thoughts)
 
@@ -576,6 +603,7 @@ def render_history(show_thoughts: bool) -> None:
 # ===================================================================================== main
 def main() -> None:
     init_state()
+    theme.inject_css()
     s: Settings = ss.settings
     set_language(s.language)
     if ss.toast:
@@ -589,15 +617,16 @@ def main() -> None:
     render_header(s)
     if neurox is None:
         st.error(t("init_error", error=ss.init_error))
-    render_history(s.show_thoughts)
+    blocked = bool(ss.pending) or neurox is None
+    render_history(s.show_thoughts, enabled=not blocked)
     if ss.pending:
         render_approval(neurox)
 
-    blocked = bool(ss.pending) or neurox is None
     value = st.chat_input(t("chat_disabled_placeholder") if ss.pending else t("chat_placeholder"),
                           accept_file="multiple", file_type=ui.UPLOAD_TYPES, disabled=blocked)
-    if value and not blocked:
-        handle_submission(neurox, value)
+    queued = ss.pop("queued_prompt", None)
+    if not blocked and (value or queued):
+        handle_submission(neurox, value or queued)
 
 
 main()

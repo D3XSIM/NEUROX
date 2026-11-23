@@ -94,7 +94,8 @@ on computer use. Settings are saved to `data/settings.json`.
 
 ### Windows .exe
 
-`Neurox.exe` is a single-file build that starts the chat UI and opens it in your browser — no Python needed.
+`Neurox.exe` is a single-file desktop app: it opens Neurox in its own native window (Edge WebView2, built into
+Windows 10/11) — no Python, no browser tab, no console. If WebView2 is missing it falls back to your browser.
 Download it from the [Releases](https://github.com/D3XSIM/NEUROX/releases) page, or build it yourself:
 
 ```powershell
@@ -102,8 +103,9 @@ cd NEUROX\neurox-LLM
 .\build_exe.ps1          # -> dist\Neurox.exe
 ```
 
-The console window shows logs; close it to stop Neurox. User data (settings, chat history, memory, rules, XP) is
-stored in `%LOCALAPPDATA%\Neurox`. You still need Ollama or LM Studio running for the model itself.
+Closing the window stops Neurox. User data (settings, chat history, memory, rules, XP) and the server log
+(`neurox.log`) are stored in `%LOCALAPPDATA%\Neurox`. You still need Ollama or LM Studio running for the model itself.
+From source you get the same window with `python neurox_launcher.py`.
 The first start takes a few seconds while the exe unpacks.
 
 ### HTTP API

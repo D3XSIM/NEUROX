@@ -94,6 +94,8 @@ def process_uploads(files) -> tuple[list[str], str, list[str]]:
 def render_message(msg: dict, show_thoughts: bool = True) -> None:
     role = msg.get("role", "assistant")
     with st.chat_message(role, avatar="🧑" if role == "user" else "🧠"):
+        from ui.theme import marker
+        marker(role)
         if msg.get("content"):
             st.markdown(msg["content"])
         show_images(msg.get("images"))
