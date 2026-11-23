@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+
+# Neurox runtime data (settings, chat history, memory, rules, XP, workspace)
+neurox-LLM/data/
+data/
+chat_history.json
+memory.json
+user_xp.json
+generated_tool.py
+*.log
+
+# Secrets
+.streamlit/secrets.toml
+.env
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
